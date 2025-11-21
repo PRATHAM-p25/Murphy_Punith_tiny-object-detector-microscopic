@@ -150,8 +150,7 @@ Simplifies object detection pipelines.
 ├── best.onnx
 ├── requirements.txt
 ├── README.md
-└── .streamlit/
-      └── secrets.toml
+└── secrets.toml
 ```
 
 ---
@@ -216,8 +215,3 @@ Image is saved via **GridFS** for high-resolution storage.
 This project provides a complete pipeline for **microscopic object detection**, **visualization**, and **cloud storage**.
 It combines the power of **YOLO ONNX**, **Streamlit**, and **MongoDB Atlas** into a scalable, easy-to-deploy system for labs, researchers, and educational institutions.
 
-If you'd like, I can also prepare:
-✅ A deployment guide
-✅ A demo video script
-✅ A project poster (for hackathon)
-Just tell me.
