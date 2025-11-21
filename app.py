@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 from ultralytics import YOLO
 from PIL import Image, ImageDraw, ImageFont
@@ -13,29 +12,23 @@ st.set_page_config(layout="wide", page_title="Microscopy ONNX Demo")
 
 st.title("Microscopy Detector (ONNX via Ultralytics + MongoDB storage)")
 
-# ---------------- Settings ----------------
-MODEL_LOCAL_PATH = "best.onnx"   # change if your model is in a subfolder, e.g. "models/best.onnx"
-GDRIVE_FILE_ID = ""             # optional: Google Drive file id if model hosted on Drive
+MODEL_LOCAL_PATH = "best.onnx"   
+GDRIVE_FILE_ID = ""             
 MODEL_IMG_SIZE = 1024
 DEFAULT_CONF = 0.25
-# ------------------------------------------
 
-# Helper to safely get Mongo URI from secrets or env
 def get_mongo_uri():
-    # First try Streamlit secrets
     try:
         mongo_conf = st.secrets.get("mongo")
         if mongo_conf and "uri" in mongo_conf:
             return mongo_conf["uri"]
     except Exception:
         pass
-    # Next, environment variable
     return os.environ.get("MONGO_URI")
 
 MONGO_URI = get_mongo_uri()
 USE_DB = bool(MONGO_URI)
 
-# Download helper (small files)
 def download_from_gdrive(file_id, dest):
     if os.path.exists(dest):
         return dest
@@ -52,9 +45,7 @@ def download_from_gdrive(file_id, dest):
 def load_model(model_path):
     return YOLO(model_path)
 
-# draw text utility (works across PIL versions)
 def get_text_size(draw, text, font):
-    # prefer textbbox
     try:
         bbox = draw.textbbox((0,0), text, font=font)
         w = bbox[2] - bbox[0]
@@ -76,14 +67,11 @@ def draw_predictions(pil_img, results, conf_thresh=0.25, model_names=None):
     except Exception:
         font = ImageFont.load_default()
     counts = {}
-    # results: list of ultralytics Results
     for r in results:
         boxes = getattr(r, "boxes", None)
         if boxes is None:
             continue
-        # ultralytics Boxes object supports iteration
         for box in boxes:
-            # get confidence & class robustly
             try:
                 score = float(box.conf[0]) if hasattr(box, "conf") else float(box.confidence)
             except Exception:
@@ -94,12 +82,10 @@ def draw_predictions(pil_img, results, conf_thresh=0.25, model_names=None):
                 cls = int(getattr(box, "class_id", 0))
             if score < conf_thresh:
                 continue
-            # xyxy extraction
             try:
                 xyxy = box.xyxy[0].tolist()
                 x1, y1, x2, y2 = xyxy
             except Exception:
-                # fallback if attributes different
                 coords = getattr(box, "xyxy", None)
                 if coords is not None:
                     x1, y1, x2, y2 = coords[0].tolist()
@@ -107,17 +93,14 @@ def draw_predictions(pil_img, results, conf_thresh=0.25, model_names=None):
                     continue
             label = (model_names[cls] if model_names and cls < len(model_names) else str(cls))
             counts[label] = counts.get(label, 0) + 1
-            # draw
             draw.rectangle([x1, y1, x2, y2], outline=(255,0,0), width=2)
             text = f"{label} {score:.2f}"
             tw, th = get_text_size(draw, text, font)
-            # ensure we don't draw outside image
             ty1 = max(0, y1 - th)
             draw.rectangle([x1, ty1, x1 + tw, y1], fill=(255,0,0))
             draw.text((x1, ty1), text, fill=(255,255,255), font=font)
     return pil_img, counts
 
-# ------- Try to initialize DB (GridFS) -------
 client = None
 db = None
 fs = None
@@ -126,7 +109,6 @@ db_error_msg = None
 if USE_DB:
     try:
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
-        # trigger server selection to detect auth/whitelist issues early
         client.server_info()
         db = client["microscopy_db"]
         fs = gridfs.GridFS(db)
@@ -140,7 +122,6 @@ if USE_DB:
     except Exception as e:
         db_error_msg = f"MongoDB connection error: {e}"
 
-# ---- Model download if needed and load ----
 if GDRIVE_FILE_ID:
     try:
         st.info("Downloading model from Google Drive...")
@@ -158,7 +139,6 @@ with st.spinner("Loading model..."):
         st.error(f"Failed to load model: {e}")
         st.stop()
 
-# --------------- UI ---------------
 col1, col2 = st.columns([1, 1.2])
 with col1:
     st.header("Run detection")
@@ -186,7 +166,6 @@ with col1:
             st.write("Counts:", counts)
             st.success(f"Inference done in {time.time()-start:.2f}s")
 
-            # ---- Save to DB ----
             if not USE_DB:
                 st.info("Mongo URI not provided. Skipping DB save. To enable DB storage, add your URI to Streamlit secrets or MONGO_URI env var.")
             else:
@@ -194,7 +173,6 @@ with col1:
                     st.error(db_error_msg)
                 else:
                     try:
-                        # Save image bytes to GridFS
                         buf = io.BytesIO()
                         pil_out.save(buf, format="PNG")
                         img_bytes_out = buf.getvalue()
@@ -236,11 +214,3 @@ with col2:
                             st.text(f"Could not read GridFS file {gfid}: {e}")
         except Exception as e:
             st.error(f"Failed to load recent docs: {e}")
-
-# Footer: helpful tips for DB
-#st.markdown("---")
-#st.markdown("**MongoDB notes / troubleshooting**")
-#st.markdown("""
-#- If you see `auth failure` -> double-check username/password and that the user has access to the `microscopy_db` database (or use admin DB).
-#- If you see connection timeout -> whitelist your IP or use `0.0.0.0/0` temporarily under Network Access in Atlas.
-#- To store URI securely in Streamlit Cloud: go to *Manage app → Settings → Secrets* and add: """)
