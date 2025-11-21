@@ -1,0 +1,7 @@
+streamlit==1.30.0
+ultralytics==8.3.229
+opencv-python-headless
+Pillow
+numpy
+requests
+onnxruntime   # optional, ultralytics may pull this automatically
