@@ -6,3 +6,4 @@ Pillow
 opencv-python-headless
 requests
 pymongo
+dnspython
