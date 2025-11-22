@@ -7,3 +7,4 @@ pillow
 numpy
 requests
 opencv-python-headless
+bson
