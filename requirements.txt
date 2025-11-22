@@ -1,10 +1,8 @@
 streamlit
 ultralytics
-pymongo
-gridfs
-bcrypt
-pillow
+opencv-python-headless
+Pillow
 numpy
 requests
-opencv-python-headless
-bson
+pymongo
+gridfs
