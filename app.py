@@ -99,6 +99,8 @@ with st.sidebar.expander("Account"):
                         else:
                             st.error("Incorrect password.")
 # ---------- END AUTH ----------
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+db = client["microscopy_db"]
 
 
 st.set_page_config(layout="wide", page_title="Microscopy ONNX Demo")
