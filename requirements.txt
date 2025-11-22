@@ -1,6 +1,6 @@
 streamlit
 ultralytics
-pymongo[srv]
+pymongo
 gridfs
 bcrypt
 pillow
