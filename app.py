@@ -194,32 +194,42 @@ if "user" not in st.session_state:
     st.session_state.user = None  # Stores {'username':..., '_id':...}
 
 # ----------------------------------------------------
-# AUTHENTICATION BLOCK (Simplified Placement)
+# AUTHENTICATION BLOCK (Forced Visibility Container)
 # ----------------------------------------------------
-if st.session_state.user:
-    # User is logged in: show success and Logout button in a compact container
-    st.sidebar.subheader("User Status")
-    st.sidebar.success(f"Signed in as: **{st.session_state.user.get('username')}**")
-    if st.sidebar.button("Logout", key="logout_btn", use_container_width=True):
-        st.session_state.user = None
-        st.experimental_rerun()
-else:
-    # User is NOT logged in: use tabs directly in the main body
-    st.subheader("Authentication")
-    tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
+# Use a container with a border to isolate the auth section and force rendering
+auth_container = st.container(border=True) 
 
-    # --- Display Sign In Form (inside the Sign In tab) ---
-    with tab_signin:
-        st.info("Sign in to save your detections.")
-        with st.form("signin_form"):
-            si_username = st.text_input("Username or Email", key="si_username")
-            si_password = st.text_input("Password", type="password", key="si_password")
-            submitted = st.form_submit_button("Sign in", type="primary")
+with auth_container:
+    st.subheader("User Authentication")
+    
+    # Check if DB is configured and working
+    if not USE_DB or db_error_msg:
+        st.error("Authentication Disabled: Cannot connect to MongoDB. Please check MONGO_URI and connection status.")
+        if db_error_msg:
+             st.warning(f"Connection error: {db_error_msg}")
+        else:
+             st.warning("MONGO_URI not configured.")
+
+    elif st.session_state.user:
+        # User is logged in: show status and Logout button
+        st.success(f"Signed in as: **{st.session_state.user.get('username')}**")
+        if st.button("Logout", key="logout_btn", use_container_width=True):
+            st.session_state.user = None
+            st.experimental_rerun()
             
-            if submitted:
-                if not USE_DB:
-                    st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
-                else:
+    else:
+        # User is NOT logged in: use tabs
+        tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
+
+        # --- Display Sign In Form ---
+        with tab_signin:
+            st.info("Sign in to save your detections.")
+            with st.form("signin_form"):
+                si_username = st.text_input("Username or Email", key="si_username")
+                si_password = st.text_input("Password", type="password", key="si_password")
+                submitted = st.form_submit_button("Sign in", type="primary")
+                
+                if submitted:
                     if db_error_msg:
                         st.error(db_error_msg)
                     else:
@@ -247,20 +257,17 @@ else:
                             else:
                                 st.error("Incorrect password.")
 
-    # --- Display Sign Up Form (inside the Sign Up tab) ---
-    with tab_signup:
-        st.info("Create a new account.")
-        with st.form("signup_form"):
-            su_username = st.text_input("Username", key="su_username")
-            su_email = st.text_input("Email (Optional)", key="su_email")
-            su_password = st.text_input("Password", type="password", key="su_password")
-            su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
-            submitted = st.form_submit_button("Create account", type="primary")
-            
-            if submitted:
-                if not USE_DB:
-                    st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
-                else:
+        # --- Display Sign Up Form ---
+        with tab_signup:
+            st.info("Create a new account.")
+            with st.form("signup_form"):
+                su_username = st.text_input("Username", key="su_username")
+                su_email = st.text_input("Email (Optional)", key="su_email")
+                su_password = st.text_input("Password", type="password", key="su_password")
+                su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
+                submitted = st.form_submit_button("Create account", type="primary")
+                
+                if submitted:
                     if db_error_msg:
                         st.error(db_error_msg)
                     elif not su_username or not su_password:
@@ -288,21 +295,21 @@ else:
                                 st.error(f"Failed to create account: {e}")
 
 # ----------------------------------------------------
-# DB Status Block (Full Width)
+# DB Status Block (Reduced Clutter)
 # ----------------------------------------------------
-st.subheader("Model & DB status")
-col_model_status, col_db_status = st.columns(2)
-with col_model_status:
-    model_status = "Loaded" if os.path.exists(MODEL_LOCAL_PATH) else "Not found locally"
-    st.write(f"Model file: `{MODEL_LOCAL_PATH}` — **{model_status}**")
-with col_db_status:
-    if USE_DB:
-        if db_error_msg:
-            st.error(f"DB: Error - {db_error_msg}")
+with st.expander("Show Model and Database Status"):
+    col_model_status, col_db_status = st.columns(2)
+    with col_model_status:
+        model_status = "Loaded" if os.path.exists(MODEL_LOCAL_PATH) else "Not found locally"
+        st.write(f"Model file: `{MODEL_LOCAL_PATH}` — **{model_status}**")
+    with col_db_status:
+        if USE_DB:
+            if db_error_msg:
+                st.error(f"DB: Error - {db_error_msg}")
+            else:
+                st.success("DB: Connected")
         else:
-            st.success("DB: Connected")
-    else:
-        st.info("DB: Not configured. Add MONGO URI in Streamlit secrets or env var.")
+            st.info("DB: Not configured. Add MONGO URI in Streamlit secrets or env var.")
 
 st.write("---")
 
@@ -402,6 +409,7 @@ with col2:
     st.markdown("""
     This application combines a microscopic object detection model (YOLO ONNX) with user authentication and data persistence using MongoDB Atlas.
 
+    - The Sign In/Sign Up forms are located in the **User Authentication** box at the top of the page.
     - Use the **Sign Up** tab to create an account. Passwords are securely hashed with **bcrypt** before storage.
     - Use the **Sign In** tab to log in. Once logged in, every detection you run will be saved in your history in MongoDB.
     
