@@ -1,23 +1,23 @@
-# Core
-streamlit>=1.26.0,<2.0
+# Streamlit app and inference deps
+streamlit==1.51.0
 
-# Model runtime (ONNX inference)
-onnxruntime==1.15.1
+# Ultralytics wrapper (loads ONNX exported by Ultralytics)
+ultralytics==8.3.229
 
-# Replace opencv with headless variant for servers
+# ONNX runtime — use a newer available build (1.23.x is widely available)
+onnxruntime==1.23.2
+
+# OpenCV without GUI (works on servers)
 opencv-python-headless==4.8.0.74
 
-# Imaging + numerical libs
-Pillow==9.5.0
-numpy==1.25.2
-requests==2.31.0
+# Image & array libs
+Pillow>=9.0.0
+numpy>=1.24.0
 
-# Database
-pymongo[srv]==4.5.1
-gridfs==3.0
+# HTTP + DB
+requests>=2.30.0
+pymongo==4.5.1
+dnspython==2.4.2
 
-# (Optional) If you must use ultralytics, enable it explicitly below.
-# NOTE: ultralytics pulls heavy deps including torch. If you get errors
-# installing ultralytics on Streamlit Cloud, remove/comment it and use
-# onnxruntime-based inference instead.
-ultralytics==8.3.229
+# Optional utilities (small)
+python-dotenv>=1.0.0
