@@ -189,11 +189,9 @@ if USE_DB:
 st.markdown("<h1 style='text-align:left'>Microscopy Detector (ONNX via Ultralytics + MongoDB)</h1>", unsafe_allow_html=True)
 st.write("---")
 
-# Initialize session state for user and for the current auth view
+# Initialize session state for user
 if "user" not in st.session_state:
     st.session_state.user = None  # Stores {'username':..., '_id':...}
-if "auth_view" not in st.session_state:
-    st.session_state.auth_view = "Sign In" # Default view is Sign In
 
 # --- Authentication Column ---
 col_auth_left, col_auth_right = st.columns([1,1])
@@ -205,73 +203,19 @@ with col_auth_left:
         st.success(f"Signed in as: **{st.session_state.user.get('username')}**")
         if st.button("Logout", key="logout_btn", use_container_width=True):
             st.session_state.user = None
-            st.session_state.auth_view = "Sign In" # Reset view on logout
             st.experimental_rerun()
             
     else:
-        # User is NOT logged in: show Sign In / Sign Up buttons
-        col_btn_in, col_btn_up = st.columns(2)
-        
-        with col_btn_in:
-            # Highlight current active view
-            style_in = "primary" if st.session_state.auth_view == "Sign In" else "secondary"
-            if st.button("Sign In", key="show_signin_btn", type=style_in, use_container_width=True):
-                st.session_state.auth_view = "Sign In"
-        with col_btn_up:
-            style_up = "primary" if st.session_state.auth_view == "Sign Up" else "secondary"
-            if st.button("Sign Up", key="show_signup_btn", type=style_up, use_container_width=True):
-                st.session_state.auth_view = "Sign Up"
+        # User is NOT logged in: use tabs to switch between Sign In and Sign Up views
+        tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
 
-        st.markdown("---") # Visual separator between buttons and form
-        
-        # --- Display Sign Up Form ---
-        if st.session_state.auth_view == "Sign Up":
-            st.info("Create a new account.")
-            with st.form("signup_form"):
-                su_username = st.text_input("Username", key="su_username")
-                su_email = st.text_input("Email (Optional)", key="su_email")
-                su_password = st.text_input("Password", type="password", key="su_password")
-                su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
-                submitted = st.form_submit_button("Create account")
-                
-                if submitted:
-                    if not USE_DB:
-                        st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
-                    else:
-                        if db_error_msg:
-                            st.error(db_error_msg)
-                        elif not su_username or not su_password:
-                            st.error("Provide a username and password.")
-                        elif su_password != su_password2:
-                            st.error("Passwords do not match.")
-                        else:
-                            # Check existing user
-                            existing = users_col.find_one({"$or": [{"username": su_username}, {"email": su_email}]})
-                            if existing:
-                                st.error("User with that username or email already exists.")
-                            else:
-                                hashed = hash_password(su_password)
-                                user_doc = {
-                                    "username": su_username,
-                                    "email": su_email,
-                                    "password": hashed,    # bytes
-                                    "created_at": datetime.utcnow()
-                                }
-                                try:
-                                    users_col.insert_one(user_doc)
-                                    st.success("Account created. You can now **Sign In**.")
-                                    st.session_state.auth_view = "Sign In" # Switch view after successful sign up
-                                    # st.experimental_rerun() # Rerunning here would clear the success message. Better to rely on the form submit flow.
-                                except Exception as e:
-                                    st.error(f"Failed to create account: {e}")
-
-        # --- Display Sign In Form ---
-        elif st.session_state.auth_view == "Sign In":
+        # --- Display Sign In Form (inside the Sign In tab) ---
+        with tab_signin:
             st.info("Sign in to save your detections.")
             with st.form("signin_form"):
                 si_username = st.text_input("Username or Email", key="si_username")
                 si_password = st.text_input("Password", type="password", key="si_password")
-                submitted = st.form_submit_button("Sign in")
+                submitted = st.form_submit_button("Sign in", type="primary")
                 
                 if submitted:
                     if not USE_DB:
@@ -303,6 +247,46 @@ with col_auth_left:
                                     st.experimental_rerun()
                                 else:
                                     st.error("Incorrect password.")
+
+        # --- Display Sign Up Form (inside the Sign Up tab) ---
+        with tab_signup:
+            st.info("Create a new account.")
+            with st.form("signup_form"):
+                su_username = st.text_input("Username", key="su_username")
+                su_email = st.text_input("Email (Optional)", key="su_email")
+                su_password = st.text_input("Password", type="password", key="su_password")
+                su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
+                submitted = st.form_submit_button("Create account", type="primary")
+                
+                if submitted:
+                    if not USE_DB:
+                        st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
+                    else:
+                        if db_error_msg:
+                            st.error(db_error_msg)
+                        elif not su_username or not su_password:
+                            st.error("Provide a username and password.")
+                        elif su_password != su_password2:
+                            st.error("Passwords do not match.")
+                        else:
+                            # Check existing user
+                            existing = users_col.find_one({"$or": [{"username": su_username}, {"email": su_email}]})
+                            if existing:
+                                st.error("User with that username or email already exists.")
+                            else:
+                                hashed = hash_password(su_password)
+                                user_doc = {
+                                    "username": su_username,
+                                    "email": su_email,
+                                    "password": hashed,    # bytes
+                                    "created_at": datetime.utcnow()
+                                }
+                                try:
+                                    users_col.insert_one(user_doc)
+                                    # Successfully created account, prompt user to sign in
+                                    st.success("Account created. Please switch to the **Sign In** tab to log in.")
+                                except Exception as e:
+                                    st.error(f"Failed to create account: {e}")
 
 # --- Model & DB Status Column ---
 with col_auth_right:
@@ -434,5 +418,3 @@ with col2:
     # Show the current user object for debugging/reference
     st.subheader("Session State")
     st.json(st.session_state.user if st.session_state.user else {"user": "None (Logged Out)"})
-
-# st.write("---") # Removed a duplicate separator
