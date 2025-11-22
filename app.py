@@ -193,106 +193,109 @@ st.write("---")
 if "user" not in st.session_state:
     st.session_state.user = None  # Stores {'username':..., '_id':...}
 
-# --- Authentication Column ---
-col_auth_left, col_auth_right = st.columns([1,1])
-with col_auth_left:
+# ----------------------------------------------------
+# AUTHENTICATION BLOCK (Simplified Placement)
+# ----------------------------------------------------
+if st.session_state.user:
+    # User is logged in: show success and Logout button in a compact container
+    st.sidebar.subheader("User Status")
+    st.sidebar.success(f"Signed in as: **{st.session_state.user.get('username')}**")
+    if st.sidebar.button("Logout", key="logout_btn", use_container_width=True):
+        st.session_state.user = None
+        st.experimental_rerun()
+else:
+    # User is NOT logged in: use tabs directly in the main body
     st.subheader("Authentication")
-    
-    if st.session_state.user:
-        # User is logged in: show success and Logout button
-        st.success(f"Signed in as: **{st.session_state.user.get('username')}**")
-        if st.button("Logout", key="logout_btn", use_container_width=True):
-            st.session_state.user = None
-            st.experimental_rerun()
+    tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
+
+    # --- Display Sign In Form (inside the Sign In tab) ---
+    with tab_signin:
+        st.info("Sign in to save your detections.")
+        with st.form("signin_form"):
+            si_username = st.text_input("Username or Email", key="si_username")
+            si_password = st.text_input("Password", type="password", key="si_password")
+            submitted = st.form_submit_button("Sign in", type="primary")
             
-    else:
-        # User is NOT logged in: use tabs to switch between Sign In and Sign Up views
-        tab_signin, tab_signup = st.tabs(["Sign In", "Sign Up"])
-
-        # --- Display Sign In Form (inside the Sign In tab) ---
-        with tab_signin:
-            st.info("Sign in to save your detections.")
-            with st.form("signin_form"):
-                si_username = st.text_input("Username or Email", key="si_username")
-                si_password = st.text_input("Password", type="password", key="si_password")
-                submitted = st.form_submit_button("Sign in", type="primary")
-                
-                if submitted:
-                    if not USE_DB:
-                        st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
+            if submitted:
+                if not USE_DB:
+                    st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
+                else:
+                    if db_error_msg:
+                        st.error(db_error_msg)
                     else:
-                        if db_error_msg:
-                            st.error(db_error_msg)
+                        # Find user by username or email
+                        user = users_col.find_one({"$or": [{"username": si_username}, {"email": si_username}]})
+                        if not user:
+                            st.error("User not found.")
                         else:
-                            # Find user by username or email
-                            user = users_col.find_one({"$or": [{"username": si_username}, {"email": si_username}]})
-                            if not user:
-                                st.error("User not found.")
+                            stored_pw = user.get("password")
+                            # stored_pw may be bytes or Binary in Mongo; handle both
+                            if isinstance(stored_pw, (bytes, bytearray)):
+                                good = check_password(si_password, stored_pw)
                             else:
-                                stored_pw = user.get("password")
-                                # stored_pw may be bytes or Binary in Mongo; handle both
-                                if isinstance(stored_pw, (bytes, bytearray)):
-                                    good = check_password(si_password, stored_pw)
-                                else:
-                                    # Try converting from BSON Binary type if necessary
-                                    try:
-                                        good = check_password(si_password, bytes(stored_pw))
-                                    except Exception:
-                                        good = False
-                                        
-                                if good:
-                                    # Store essential user data in session state
-                                    st.session_state.user = {"username": user.get("username"), "_id": str(user.get("_id"))}
-                                    st.success(f"Signed in: {user.get('username')}")
-                                    st.experimental_rerun()
-                                else:
-                                    st.error("Incorrect password.")
-
-        # --- Display Sign Up Form (inside the Sign Up tab) ---
-        with tab_signup:
-            st.info("Create a new account.")
-            with st.form("signup_form"):
-                su_username = st.text_input("Username", key="su_username")
-                su_email = st.text_input("Email (Optional)", key="su_email")
-                su_password = st.text_input("Password", type="password", key="su_password")
-                su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
-                submitted = st.form_submit_button("Create account", type="primary")
-                
-                if submitted:
-                    if not USE_DB:
-                        st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
-                    else:
-                        if db_error_msg:
-                            st.error(db_error_msg)
-                        elif not su_username or not su_password:
-                            st.error("Provide a username and password.")
-                        elif su_password != su_password2:
-                            st.error("Passwords do not match.")
-                        else:
-                            # Check existing user
-                            existing = users_col.find_one({"$or": [{"username": su_username}, {"email": su_email}]})
-                            if existing:
-                                st.error("User with that username or email already exists.")
-                            else:
-                                hashed = hash_password(su_password)
-                                user_doc = {
-                                    "username": su_username,
-                                    "email": su_email,
-                                    "password": hashed,    # bytes
-                                    "created_at": datetime.utcnow()
-                                }
+                                # Try converting from BSON Binary type if necessary
                                 try:
-                                    users_col.insert_one(user_doc)
-                                    # Successfully created account, prompt user to sign in
-                                    st.success("Account created. Please switch to the **Sign In** tab to log in.")
-                                except Exception as e:
-                                    st.error(f"Failed to create account: {e}")
+                                    good = check_password(si_password, bytes(stored_pw))
+                                except Exception:
+                                    good = False
+                                    
+                            if good:
+                                # Store essential user data in session state
+                                st.session_state.user = {"username": user.get("username"), "_id": str(user.get("_id"))}
+                                st.success(f"Signed in: {user.get('username')}")
+                                st.experimental_rerun()
+                            else:
+                                st.error("Incorrect password.")
 
-# --- Model & DB Status Column ---
-with col_auth_right:
-    st.subheader("Model & DB status")
+    # --- Display Sign Up Form (inside the Sign Up tab) ---
+    with tab_signup:
+        st.info("Create a new account.")
+        with st.form("signup_form"):
+            su_username = st.text_input("Username", key="su_username")
+            su_email = st.text_input("Email (Optional)", key="su_email")
+            su_password = st.text_input("Password", type="password", key="su_password")
+            su_password2 = st.text_input("Confirm password", type="password", key="su_password2")
+            submitted = st.form_submit_button("Create account", type="primary")
+            
+            if submitted:
+                if not USE_DB:
+                    st.error("MongoDB URI not configured. Add to Streamlit secrets or env var.")
+                else:
+                    if db_error_msg:
+                        st.error(db_error_msg)
+                    elif not su_username or not su_password:
+                        st.error("Provide a username and password.")
+                    elif su_password != su_password2:
+                        st.error("Passwords do not match.")
+                    else:
+                        # Check existing user
+                        existing = users_col.find_one({"$or": [{"username": su_username}, {"email": su_email}]})
+                        if existing:
+                            st.error("User with that username or email already exists.")
+                        else:
+                            hashed = hash_password(su_password)
+                            user_doc = {
+                                "username": su_username,
+                                "email": su_email,
+                                "password": hashed,    # bytes
+                                "created_at": datetime.utcnow()
+                            }
+                            try:
+                                users_col.insert_one(user_doc)
+                                # Successfully created account, prompt user to sign in
+                                st.success("Account created. Please switch to the **Sign In** tab to log in.")
+                            except Exception as e:
+                                st.error(f"Failed to create account: {e}")
+
+# ----------------------------------------------------
+# DB Status Block (Full Width)
+# ----------------------------------------------------
+st.subheader("Model & DB status")
+col_model_status, col_db_status = st.columns(2)
+with col_model_status:
     model_status = "Loaded" if os.path.exists(MODEL_LOCAL_PATH) else "Not found locally"
-    st.write(f"Model file: `{MODEL_LOCAL_PATH}` — {model_status}")
+    st.write(f"Model file: `{MODEL_LOCAL_PATH}` — **{model_status}**")
+with col_db_status:
     if USE_DB:
         if db_error_msg:
             st.error(f"DB: Error - {db_error_msg}")
