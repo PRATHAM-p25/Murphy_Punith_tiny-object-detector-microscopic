@@ -10,7 +10,7 @@
 #ultralytics
 
 streamlit>=1.26.0,<2.0
-ultralytics
+ultralytics==8.0.22
 onnx
 onnxruntime
 opencv-python-headless
